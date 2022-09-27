@@ -1,0 +1,16 @@
+[package]
+name = "ava-apartment-finder"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+color-eyre = "0.6.2"
+quick-js = "0.4.1"
+reqwest = "0.11.12"
+serde = { version = "1.0.145", features = ["derive"] }
+serde_json = "1.0.85"
+soup = "0.5.1"
+tokio = { version = "1.21.1", features = ["full"] }
+tracing = { version = "0.1.36", features = ["attributes"] }
