@@ -78,8 +78,11 @@ async fn main() -> eyre::Result<()> {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ApartmentData {
     units: Vec<Apartment>,
+    promotions: Vec<Promotion>,
+    pricing_overview: Vec<PricingOverview>,
     #[serde(flatten)]
     extra: Value,
 }
@@ -161,4 +164,38 @@ struct LowestRent {
 
     #[serde(flatten)]
     price: Price,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct Promotion {
+    #[serde(rename = "promotionId")]
+    id: String,
+    #[serde(rename = "promotionTitle")]
+    title: String,
+    #[serde(rename = "promotionDescription")]
+    description: String,
+    #[serde(rename = "promotionDisclaimer")]
+    disclaimer: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplicablePromotion {
+    promotion_id: String,
+    start_date: String,
+    end_date: String,
+    terms: Vec<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PricingOverview {
+    display_name: String,
+    bedroom: usize,
+    r#type: String,
+    available: bool,
+    designated_lowest_price: f64,
+    on_demand_lowest_price: Option<f64>,
+    total_lowest_price: f64,
+    total_highest_price: f64,
 }
