@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4.22"
 color-eyre = "0.6.2"
 quick-js = "0.4.1"
 reqwest = "0.11.12"

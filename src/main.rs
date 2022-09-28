@@ -2,12 +2,16 @@
 
 use std::collections::BTreeMap;
 
+use chrono::DateTime;
+use chrono::Utc;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
 use quick_js::Context;
 use serde::Deserialize;
 use serde_json::Value;
 use soup::prelude::*;
+
+mod ava_date;
 
 const AVA_URL: &str =
     "https://new.avaloncommunities.com/washington/seattle-apartments/ava-capitol-hill/";
@@ -19,25 +23,7 @@ const JS_SUFFIX: &str = "JSON.stringify(Fusion.globalContent)";
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let response = reqwest::get(AVA_URL).await?;
-    let body = response.text().await?;
-
-    let soup = Soup::new(&body);
-
-    let script_tag = soup
-        .tag("script")
-        .attr("id", "fusion-metadata")
-        .find()
-        .ok_or_else(|| eyre!("Could not find `<script id=\"fusion-metadata\">` tag"))?
-        .text();
-
-    let script = format!("{JS_PREFIX}{script_tag}{JS_SUFFIX}");
-
-    let js_context = Context::new().unwrap();
-
-    let value = js_context.eval_as::<String>(&script)?;
-
-    let apartment_data: ApartmentData = serde_json::from_str(&value)?;
+    let apartment_data = get_apartments().await?;
 
     for Apartment {
         unit_id,
@@ -77,6 +63,37 @@ async fn main() -> eyre::Result<()> {
     Ok(())
 }
 
+async fn get_apartments() -> eyre::Result<ApartmentData> {
+    let response = reqwest::get(AVA_URL).await?;
+
+    tracing::trace!(?response, "Got response");
+
+    let body = response.text().await?;
+
+    tracing::trace!(html = body, "Got HTML");
+
+    let soup = Soup::new(&body);
+
+    let script_tag = soup
+        .tag("script")
+        .attr("id", "fusion-metadata")
+        .find()
+        .ok_or_else(|| eyre!("Could not find `<script id=\"fusion-metadata\">` tag"))?
+        .text();
+
+    let script = format!("{JS_PREFIX}{script_tag}{JS_SUFFIX}");
+
+    tracing::trace!(script, "Extracted JavaScript");
+
+    let js_context = Context::new().unwrap();
+
+    let value = js_context.eval_as::<String>(&script)?;
+
+    tracing::trace!(value, "Evaluated JavaScript");
+
+    Ok(serde_json::from_str(&value)?)
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ApartmentData {
@@ -100,7 +117,8 @@ struct Apartment {
     bedroom: usize,
     bathroom: usize,
     square_feet: f64,
-    available_date: String,
+    #[serde(with = "ava_date")]
+    available_date: DateTime<Utc>,
     #[serde(rename = "unitRentPrice")]
     rent: Rent,
     #[serde(rename = "lowestPricePerMoveInDate")]
@@ -143,7 +161,8 @@ struct Rent {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PricesForMoveInDate {
-    move_in_date: String,
+    #[serde(with = "ava_date")]
+    move_in_date: DateTime<Utc>,
     prices_per_terms: BTreeMap<usize, Price>,
 }
 
@@ -157,7 +176,8 @@ struct Price {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LowestRent {
-    date: String,
+    #[serde(with = "ava_date")]
+    date: DateTime<Utc>,
 
     // Shoulda been a usize
     term_length: String,
@@ -182,8 +202,10 @@ struct Promotion {
 #[serde(rename_all = "camelCase")]
 struct ApplicablePromotion {
     promotion_id: String,
-    start_date: String,
-    end_date: String,
+    #[serde(with = "ava_date")]
+    start_date: DateTime<Utc>,
+    #[serde(with = "ava_date")]
+    end_date: DateTime<Utc>,
     terms: Vec<usize>,
 }
 
