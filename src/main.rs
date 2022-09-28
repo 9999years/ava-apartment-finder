@@ -57,6 +57,8 @@ async fn main() -> eyre::Result<()> {
 
         let price = lowest_rent.price.price;
 
+        let available_date = available_date.date();
+
         println!("Apartment {number} ({bedroom} bed {bathroom} bath, ${price}): {square_feet} sqft, available {available_date}");
     }
 
@@ -220,4 +222,10 @@ struct PricingOverview {
     on_demand_lowest_price: Option<f64>,
     total_lowest_price: f64,
     total_highest_price: f64,
+}
+
+// --
+
+struct App {
+    known_apartments: BTreeMap<String, Apartment>,
 }
