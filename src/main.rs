@@ -1,17 +1,23 @@
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use chrono::DateTime;
 use chrono::Utc;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
-use quick_js::Context;
+use color_eyre::eyre::Context;
+use quick_js::Context as QuickJs;
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 use soup::prelude::*;
 
 mod ava_date;
+mod diff;
+
+const DATA_PATH: &str = "ava_db.json";
 
 const AVA_URL: &str =
     "https://new.avaloncommunities.com/washington/seattle-apartments/ava-capitol-hill/";
@@ -23,6 +29,17 @@ const JS_SUFFIX: &str = "JSON.stringify(Fusion.globalContent)";
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    let data_path = Path::new(&DATA_PATH);
+    if data_path.exists() {
+        tracing::debug!(path = ?data_path, "DB path exists, reading");
+        let app: App = serde_json::from_str(
+            &std::fs::read_to_string(&data_path)
+                .wrap_err_with(|| format!("Failed to read `{data_path:?}`"))?,
+        )
+        .wrap_err_with(|| format!("Failed to load Apartment data from `{data_path:?}`"))?;
+    } else {
+    }
+
     let apartment_data = get_apartments().await?;
 
     for Apartment {
@@ -87,16 +104,16 @@ async fn get_apartments() -> eyre::Result<ApartmentData> {
 
     tracing::trace!(script, "Extracted JavaScript");
 
-    let js_context = Context::new().unwrap();
+    let quick_js = QuickJs::new().unwrap();
 
-    let value = js_context.eval_as::<String>(&script)?;
+    let value = quick_js.eval_as::<String>(&script)?;
 
     tracing::trace!(value, "Evaluated JavaScript");
 
     Ok(serde_json::from_str(&value)?)
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ApartmentData {
     units: Vec<Apartment>,
@@ -106,7 +123,7 @@ struct ApartmentData {
     extra: Value,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct Apartment {
     unit_id: String,
@@ -130,7 +147,7 @@ struct Apartment {
     extra: Value,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 enum Furnished {
     Unfurnished,
     OnDemand,
@@ -138,7 +155,7 @@ enum Furnished {
     Furnished,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct FloorPlan {
     name: String,
@@ -146,21 +163,21 @@ struct FloorPlan {
     high_resolution: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct VirtualTour {
     space: String,
     is_actual_unit: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct Rent {
     applied_discount: f64,
     prices_per_movein_date: Vec<PricesForMoveInDate>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct PricesForMoveInDate {
     #[serde(with = "ava_date")]
@@ -168,14 +185,14 @@ struct PricesForMoveInDate {
     prices_per_terms: BTreeMap<usize, Price>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct Price {
     price: f64,
     net_effective_price: f64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct LowestRent {
     #[serde(with = "ava_date")]
@@ -188,7 +205,7 @@ struct LowestRent {
     price: Price,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 struct Promotion {
     #[serde(rename = "promotionId")]
     id: String,
@@ -200,7 +217,7 @@ struct Promotion {
     disclaimer: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct ApplicablePromotion {
     promotion_id: String,
@@ -211,7 +228,7 @@ struct ApplicablePromotion {
     terms: Vec<usize>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct PricingOverview {
     display_name: String,
@@ -226,6 +243,60 @@ struct PricingOverview {
 
 // --
 
+#[derive(Clone, Debug, Default)]
+struct ApartmentsDiff {
+    added: Vec<Apartment>,
+    removed: Vec<Apartment>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct App {
     known_apartments: BTreeMap<String, Apartment>,
+}
+
+impl App {
+    /// One 'tick' of the app. Get new apartment data and report changes.
+    async fn tick(&mut self) -> eyre::Result<()> {
+        Ok(())
+    }
+
+    /// Fetch new apartment data, update `known_apartments` to include it, and return the
+    /// changes with the previous `known_apartments`.
+    async fn compute_diff(&mut self) -> eyre::Result<()> {
+        let new_data = get_apartments().await?;
+        let mut diff = ApartmentsDiff::default();
+
+        for unit in new_data.units {
+            if let Some(known_unit) = self.known_apartments.get(&unit.unit_id) {
+                if &unit != known_unit {
+                    // TODO: print diff here!!
+                    tracing::info!(
+                        old_data = serde_json::to_string_pretty(known_unit)
+                            .map_err(|err| tracing::error!("{err}"))
+                            .unwrap(),
+                        new_data = serde_json::to_string_pretty(&unit)
+                            .map_err(|err| tracing::error!("{err}"))
+                            .unwrap(),
+                        "Data changed for apartment {}",
+                        unit.number
+                    );
+                }
+                // diff.added.push(unit);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl From<ApartmentData> for App {
+    fn from(data: ApartmentData) -> Self {
+        let mut known_apartments = BTreeMap::new();
+
+        for unit in data.units {
+            known_apartments.insert(unit.unit_id.clone(), unit);
+        }
+
+        Self { known_apartments }
+    }
 }
