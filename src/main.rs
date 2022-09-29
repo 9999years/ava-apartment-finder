@@ -269,16 +269,10 @@ impl App {
         for unit in new_data.units {
             if let Some(known_unit) = self.known_apartments.get(&unit.unit_id) {
                 if &unit != known_unit {
-                    // TODO: print diff here!!
                     tracing::info!(
-                        old_data = serde_json::to_string_pretty(known_unit)
-                            .map_err(|err| tracing::error!("{err}"))
-                            .unwrap(),
-                        new_data = serde_json::to_string_pretty(&unit)
-                            .map_err(|err| tracing::error!("{err}"))
-                            .unwrap(),
-                        "Data changed for apartment {}",
-                        unit.number
+                        "Data changed for apartment {}:\n{}",
+                        unit.number,
+                        diff::diff(&format!("{known_unit:#?}"), &format!("{unit:#?}"))?
                     );
                 }
                 // diff.added.push(unit);
