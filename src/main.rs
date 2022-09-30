@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::path::Path;
+use std::time::Duration;
 
 use chrono::DateTime;
 use chrono::Utc;
+use clap::Parser;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
 use color_eyre::eyre::Context;
@@ -16,6 +19,8 @@ use soup::prelude::*;
 
 mod ava_date;
 mod diff;
+mod tracing_format;
+mod wrap;
 
 const DATA_PATH: &str = "ava_db.json";
 
@@ -27,59 +32,59 @@ const JS_PREFIX: &str = "window = {}; \
                          Fusion = window.Fusion; ";
 const JS_SUFFIX: &str = "JSON.stringify(Fusion.globalContent)";
 
+const SECONDS_PER_MINUTE: u64 = 50;
+
+#[derive(Parser)]
+struct Args {
+    #[clap(long, default_value = "info")]
+    tracing_filter: String,
+}
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    let args = Args::parse();
+    install_tracing(&args.tracing_filter);
     let data_path = Path::new(&DATA_PATH);
-    if data_path.exists() {
+    let mut app: App = if data_path.exists() {
         tracing::debug!(path = ?data_path, "DB path exists, reading");
-        let app: App = serde_json::from_str(
+        serde_json::from_str(
             &std::fs::read_to_string(&data_path)
                 .wrap_err_with(|| format!("Failed to read `{data_path:?}`"))?,
         )
-        .wrap_err_with(|| format!("Failed to load Apartment data from `{data_path:?}`"))?;
+        .wrap_err_with(|| format!("Failed to load Apartment data from `{data_path:?}`"))?
     } else {
-    }
+        tracing::info!(path = ?data_path, "No DB, initializing");
+        App::default()
+    };
 
-    let apartment_data = get_apartments().await?;
-
-    for Apartment {
-        unit_id,
-        number,
-        furnished,
-        floor_plan,
-        virtual_tour,
-        bedroom,
-        bathroom,
-        square_feet,
-        available_date,
-        rent,
-        lowest_rent,
-        extra,
-    } in apartment_data.units
-    {
-        if let Furnished::Furnished = furnished {
-            tracing::debug!(number = number, "Skipping apartment; furnished");
-            continue;
+    loop {
+        match app.tick().await {
+            Ok(()) => {}
+            Err(err) => {
+                tracing::error!("{err:?}");
+            }
         }
-
-        if bedroom != 2 {
-            tracing::debug!(
-                number = number,
-                bedrooms = bedroom,
-                bathrooms = bathroom,
-                "Skipping apartment; too few bedrooms"
-            );
-            continue;
-        }
-
-        let price = lowest_rent.price.price;
-
-        let available_date = available_date.date();
-
-        println!("Apartment {number} ({bedroom} bed {bathroom} bath, ${price}): {square_feet} sqft, available {available_date}");
+        // Wait 5 minutes before checking again.
+        tokio::time::sleep(Duration::from_secs(5 * SECONDS_PER_MINUTE)).await;
     }
+}
 
-    Ok(())
+/// Initialize the logging framework.
+fn install_tracing(filter_directives: &str) {
+    use tracing_subscriber::fmt;
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::EnvFilter;
+
+    let fmt_layer = fmt::layer().event_format(tracing_format::EventFormatter::default());
+    let filter_layer = EnvFilter::try_new(filter_directives)
+        .or_else(|_| EnvFilter::try_from_default_env())
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap();
+
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(filter_layer)
+        .init();
 }
 
 async fn get_apartments() -> eyre::Result<ApartmentData> {
@@ -145,6 +150,67 @@ struct Apartment {
 
     #[serde(flatten)]
     extra: Value,
+}
+
+impl Apartment {
+    fn meets_qualifications(&self) -> bool {
+        if let Furnished::Furnished = self.furnished {
+            tracing::debug!(number = self.number, "Skipping apartment; furnished");
+            false
+        } else if self.bedroom != 2 {
+            tracing::debug!(
+                number = self.number,
+                bedrooms = self.bedroom,
+                bathrooms = self.bathroom,
+                rent = self.lowest_rent.price.price,
+                "Skipping apartment; too few bedrooms"
+            );
+            false
+        } else {
+            true
+        }
+    }
+}
+
+impl Display for Apartment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Apartment {
+            number,
+            floor_plan,
+            virtual_tour,
+            bedroom,
+            bathroom,
+            square_feet,
+            available_date,
+            furnished,
+            lowest_rent,
+            ..
+        } = self;
+        let price = lowest_rent.price.price;
+        let available_date = &available_date.date();
+        let floor_plan = &floor_plan.name;
+        let virtual_tour = match virtual_tour {
+            Some(virtual_tour) if virtual_tour.is_actual_unit => ", virtual tour",
+            _ => "",
+        };
+        let furnished = match furnished {
+            Furnished::Unfurnished => "",
+            Furnished::OnDemand => "",
+            Furnished::Furnished => ", furnished",
+        };
+        write!(
+            f,
+            "Apartment {number} \
+             ({bedroom} bed {bathroom} bath, \
+             ${price}, \
+             {square_feet}sq/ft, \
+             avail. {available_date}, \
+             plan {floor_plan}\
+             {furnished}\
+             {virtual_tour}\
+             )"
+        )
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -247,9 +313,39 @@ struct PricingOverview {
 struct ApartmentsDiff {
     added: Vec<Apartment>,
     removed: Vec<Apartment>,
+    changed: Vec<ChangedApartment>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+impl ApartmentsDiff {
+    fn is_empty(&self) -> bool {
+        self.added.is_empty() && self.removed.is_empty() && self.changed.is_empty()
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ChangedApartment {
+    old: Apartment,
+    new: Apartment,
+}
+
+impl Display for ChangedApartment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { old, new } = self;
+        write!(
+            f,
+            "{}",
+            diff::diff_header(
+                &format!("{old:#?}"),
+                &format!("{new:#?}"),
+                &old.to_string(),
+                &new.to_string(),
+            )
+            .unwrap_or_else(|err| format!("{err:?}"))
+        )
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct App {
     known_apartments: BTreeMap<String, Apartment>,
 }
@@ -257,40 +353,92 @@ struct App {
 impl App {
     /// One 'tick' of the app. Get new apartment data and report changes.
     async fn tick(&mut self) -> eyre::Result<()> {
-        Ok(())
-    }
+        let diff = self.compute_diff().await?;
 
-    /// Fetch new apartment data, update `known_apartments` to include it, and return the
-    /// changes with the previous `known_apartments`.
-    async fn compute_diff(&mut self) -> eyre::Result<()> {
-        let new_data = get_apartments().await?;
-        let mut diff = ApartmentsDiff::default();
+        if diff.is_empty() {
+            tracing::debug!(total_available = self.known_apartments.len(), "No news :(");
+        } else {
+            tracing::info!(
+                total_available = self.known_apartments.len(),
+                added = diff.added.len(),
+                removed = diff.removed.len(),
+                changed = diff.changed.len(),
+                "Data has changed!"
+            );
 
-        for unit in new_data.units {
-            if let Some(known_unit) = self.known_apartments.get(&unit.unit_id) {
-                if &unit != known_unit {
-                    tracing::info!(
-                        "Data changed for apartment {}:\n{}",
-                        unit.number,
-                        diff::diff(&format!("{known_unit:#?}"), &format!("{unit:#?}"))?
-                    );
-                }
-                // diff.added.push(unit);
+            if !diff.added.is_empty() {
+                tracing::info!(
+                    "Newly listed apartments:\n{}",
+                    to_bullet_list(diff.added.iter())
+                );
+            }
+
+            if !diff.removed.is_empty() {
+                tracing::info!(
+                    "Unlisted apartments:\n{}",
+                    to_bullet_list(diff.removed.iter())
+                );
+            }
+
+            if !diff.changed.is_empty() {
+                tracing::info!(
+                    "Changed apartments:\n{}",
+                    to_bullet_list(diff.changed.iter())
+                );
             }
         }
 
         Ok(())
     }
-}
 
-impl From<ApartmentData> for App {
-    fn from(data: ApartmentData) -> Self {
-        let mut known_apartments = BTreeMap::new();
+    /// Fetch new apartment data, update `known_apartments` to include it, and return the
+    /// changes with the previous `known_apartments`.
+    async fn compute_diff(&mut self) -> eyre::Result<ApartmentsDiff> {
+        let new_data = get_apartments().await?;
+        let mut diff = ApartmentsDiff::default();
+        // A clone of `known_apartments`. We remove each apartment in the _new_
+        // data from this map to compute the set of apartments present in the previous
+        // data and not present now; that is, the set of apartments that have been
+        // _unlisted_.
+        let mut removed: BTreeMap<_, _> = std::mem::take(&mut self.known_apartments);
 
-        for unit in data.units {
-            known_apartments.insert(unit.unit_id.clone(), unit);
+        for unit in new_data.units {
+            // Did we have any data for this apartment already?
+            // Remember we have the old apartments (minus the ones we've already seen
+            // in the new data) in `removed`.
+            match removed.get(&unit.unit_id) {
+                Some(known_unit) => {
+                    // We already have data for an apartment with the same `unit_id`.
+                    if &unit != known_unit {
+                        // It's different data! Show what changed.
+                        let changed = ChangedApartment {
+                            old: known_unit.clone(),
+                            new: unit.clone(),
+                        };
+                        // Mark this apartment as changed.
+                        diff.changed.push(changed);
+                    }
+                    // No new data.
+                }
+                None => {
+                    // A new apartment!!!
+                    diff.added.push(unit.clone());
+                }
+            }
+
+            // This unit is still listed, so it wasn't removed.
+            removed.remove(&unit.unit_id);
+            // Update our data.
+            self.known_apartments.insert(unit.unit_id.clone(), unit);
         }
 
-        Self { known_apartments }
+        diff.removed
+            .extend(removed.into_iter().map(|(_, unit)| unit));
+
+        Ok(diff)
     }
+}
+
+fn to_bullet_list(iter: impl Iterator<Item = impl Display>) -> String {
+    itertools::join(iter.map(|unit| format!("• {unit}")), "\n")
 }
