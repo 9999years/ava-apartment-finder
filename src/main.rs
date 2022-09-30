@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 use std::fmt::Display;
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::Path;
 use std::time::Duration;
 
@@ -387,6 +389,11 @@ impl App {
                 );
             }
         }
+
+        let data_file =
+            File::create(&DATA_PATH).wrap_err_with(|| format!("Failed to open {DATA_PATH:?}"))?;
+        serde_json::to_writer_pretty(BufWriter::new(data_file), self)
+            .wrap_err("Failed to write DB")?;
 
         Ok(())
     }
