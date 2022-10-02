@@ -22,22 +22,17 @@ impl TryFrom<ApiApartmentData> for ApartmentData {
 
         for apt in data.units {
             apartments.push(Apartment {
-                    inner: apt.clone(),
-                    history: vec![
-                        ApartmentSnapshot {
-                            inner: serde_json::to_value(&apt)?,
-                            observed: Utc::now(),
-                        }
-                    ],
-                    listed: Utc::now(),
-                    unlisted: None,
-                }
-            )
+                inner: apt.clone(),
+                history: vec![ApartmentSnapshot {
+                    inner: serde_json::to_value(&apt)?,
+                    observed: Utc::now(),
+                }],
+                listed: Utc::now(),
+                unlisted: None,
+            })
         }
 
-        Ok(Self {
-            apartments
-        })
+        Ok(Self { apartments })
     }
 }
 
@@ -71,6 +66,21 @@ impl Apartment {
             observed: Utc::now(),
         });
         Ok(())
+    }
+}
+
+impl Display for Apartment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(unlisted) = self.unlisted {
+            write!(
+                f,
+                "Unlisted after {}: {}",
+                unlisted - self.listed,
+                self.inner
+            )
+        } else {
+            write!(f, "{}", self.inner)
+        }
     }
 }
 
@@ -257,10 +267,7 @@ struct PricingOverview {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(transparent)]
-struct AvaDate(
-    #[serde(with = "crate::ava_date")]
-    DateTime<Utc>
-);
+struct AvaDate(#[serde(with = "crate::ava_date")] DateTime<Utc>);
 
 impl std::ops::Deref for AvaDate {
     type Target = DateTime<Utc>;

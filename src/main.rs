@@ -108,7 +108,7 @@ async fn get_apartments() -> eyre::Result<api::ApartmentData> {
 #[derive(Clone, Debug, Default)]
 struct ApartmentsDiff {
     added: Vec<api::ApiApartment>,
-    removed: Vec<api::ApiApartment>,
+    removed: Vec<api::Apartment>,
     changed: Vec<ChangedApartment>,
 }
 
@@ -234,15 +234,15 @@ impl App {
             self.known_apartments.insert(apt.id().to_owned(), apt);
         }
 
+        for (_, mut unit) in removed.iter_mut() {
+            unit.unlisted = Some(Utc::now());
+        }
+
         diff.removed
-            .extend(removed.iter().map(|(_, unit)| unit.inner.clone()));
+            .extend(removed.iter().map(|(_, unit)| unit.clone()));
 
         // Note when each apartment was unlisted.
-        self.unlisted_apartments
-            .extend(removed.into_iter().map(|(id, mut unit)| {
-                unit.unlisted = Some(Utc::now());
-                (id, unit)
-            }));
+        self.unlisted_apartments.extend(removed.into_iter());
 
         Ok(diff)
     }
