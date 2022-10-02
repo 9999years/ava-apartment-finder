@@ -6,10 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+camino = "1.1.1"
 chrono = { version = "0.4.22", features = ["serde"] }
 clap = { version = "3.2.16", features = ["derive"] }
 color-eyre = "0.6.2"
-diff-struct = "0.4.2"
+dirs = "4.0.0"
 itertools = "0.10.5"
 owo-colors = { version = "3.5.0", features = ["supports-colors"] }
 reqwest = "0.11.12"
@@ -21,4 +22,4 @@ tap = "1.0.1"
 textwrap = { version = "0.15.1", features = ["terminal_size"] }
 tokio = { version = "1.21.1", features = ["full"] }
 tracing = { version = "0.1.36", features = ["attributes"] }
-tracing-subscriber = { version = "0.3.14", features = ["env-filter", "time"] }
+tracing-subscriber = { version = "0.3.15", features = ["env-filter", "time", "json"] }

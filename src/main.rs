@@ -20,7 +20,7 @@ mod api;
 mod ava_date;
 mod diff;
 mod node;
-mod tracing_format;
+mod trace;
 mod wrap;
 
 const DATA_PATH: &str = "ava_db.json";
@@ -44,7 +44,9 @@ struct Args {
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let args = Args::parse();
-    install_tracing(&args.tracing_filter);
+    let log_file = trace::install_tracing(&args.tracing_filter)?;
+    tracing::info!("Logging to {log_file}");
+
     let data_path = Path::new(&DATA_PATH);
     let mut app: App = if data_path.exists() {
         tracing::info!(path = ?data_path, "DB path exists, reading");
@@ -70,24 +72,6 @@ async fn main() -> eyre::Result<()> {
         // Wait 5 minutes before checking again.
         tokio::time::sleep(Duration::from_secs(5 * SECONDS_PER_MINUTE)).await;
     }
-}
-
-/// Initialize the logging framework.
-fn install_tracing(filter_directives: &str) {
-    use tracing_subscriber::fmt;
-    use tracing_subscriber::prelude::*;
-    use tracing_subscriber::EnvFilter;
-
-    let fmt_layer = fmt::layer().event_format(tracing_format::EventFormatter::default());
-    let filter_layer = EnvFilter::try_new(filter_directives)
-        .or_else(|_| EnvFilter::try_from_default_env())
-        .or_else(|_| EnvFilter::try_new("info"))
-        .unwrap();
-
-    tracing_subscriber::registry()
-        .with(fmt_layer)
-        .with(filter_layer)
-        .init();
 }
 
 async fn get_apartments() -> eyre::Result<api::ApartmentData> {
