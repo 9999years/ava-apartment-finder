@@ -22,4 +22,3 @@ textwrap = { version = "0.15.1", features = ["terminal_size"] }
 tokio = { version = "1.21.1", features = ["full"] }
 tracing = { version = "0.1.36", features = ["attributes"] }
 tracing-subscriber = { version = "0.3.14", features = ["env-filter", "time"] }
-v8 = "0.51.0"

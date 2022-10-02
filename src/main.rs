@@ -19,6 +19,7 @@ use soup::prelude::*;
 mod api;
 mod ava_date;
 mod diff;
+mod node;
 mod tracing_format;
 mod wrap;
 
@@ -30,7 +31,7 @@ const AVA_URL: &str =
 const JS_PREFIX: &str = "window = {}; \
                          window.Fusion = {}; \
                          Fusion = window.Fusion; ";
-const JS_SUFFIX: &str = "JSON.stringify(Fusion.globalContent)";
+const JS_SUFFIX: &str = "console.log(JSON.stringify(Fusion.globalContent))";
 
 const SECONDS_PER_MINUTE: u64 = 50;
 
@@ -111,31 +112,11 @@ async fn get_apartments() -> eyre::Result<api::ApartmentData> {
 
     tracing::trace!(script, "Extracted JavaScript");
 
-    let value = v8_eval(&script)?;
+    let value = node::js_eval(script)?;
 
     tracing::trace!(value, "Evaluated JavaScript");
 
     Ok(serde_json::from_str(&value)?)
-}
-
-fn v8_eval(code: &str) -> eyre::Result<String> {
-    let platform = v8::new_default_platform(0, false).make_shared();
-    v8::V8::initialize_platform(platform);
-    v8::V8::initialize();
-
-    let isolate = &mut v8::Isolate::new(Default::default());
-
-    let scope = &mut v8::HandleScope::new(isolate);
-    let context = v8::Context::new(scope);
-    let scope = &mut v8::ContextScope::new(scope, context);
-
-    let code = v8::String::new(scope, code)
-        .ok_or_else(|| eyre!("Failed to create V8 string from code"))?;
-
-    let script = v8::Script::compile(scope, code, None).ok_or_else(|| eyre!("Failed to compile JavaScript code"))?;
-    let result = script.run(scope)
-        .ok_or_else(|| eyre!("Failed to run JavaScript code"))?;
-    Ok(result.to_rust_string_lossy(scope))
 }
 
 // --
