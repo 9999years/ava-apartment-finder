@@ -12,7 +12,6 @@ use clap::Parser;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
 use color_eyre::eyre::Context;
-use quick_js::Context as QuickJs;
 use serde::Deserialize;
 use serde::Serialize;
 use soup::prelude::*;
@@ -112,13 +111,31 @@ async fn get_apartments() -> eyre::Result<api::ApartmentData> {
 
     tracing::trace!(script, "Extracted JavaScript");
 
-    let quick_js = QuickJs::new().unwrap();
-
-    let value = quick_js.eval_as::<String>(&script)?;
+    let value = v8_eval(&script)?;
 
     tracing::trace!(value, "Evaluated JavaScript");
 
     Ok(serde_json::from_str(&value)?)
+}
+
+fn v8_eval(code: &str) -> eyre::Result<String> {
+    let platform = v8::new_default_platform(0, false).make_shared();
+    v8::V8::initialize_platform(platform);
+    v8::V8::initialize();
+
+    let isolate = &mut v8::Isolate::new(Default::default());
+
+    let scope = &mut v8::HandleScope::new(isolate);
+    let context = v8::Context::new(scope);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let code = v8::String::new(scope, code)
+        .ok_or_else(|| eyre!("Failed to create V8 string from code"))?;
+
+    let script = v8::Script::compile(scope, code, None).ok_or_else(|| eyre!("Failed to compile JavaScript code"))?;
+    let result = script.run(scope)
+        .ok_or_else(|| eyre!("Failed to run JavaScript code"))?;
+    Ok(result.to_rust_string_lossy(scope))
 }
 
 // --
