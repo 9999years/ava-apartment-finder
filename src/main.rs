@@ -171,7 +171,7 @@ impl App {
         if diff.is_empty() {
             tracing::debug!(total_available = self.known_apartments.len(), "No news :(");
         } else {
-            tracing::info!(
+            tracing::debug!(
                 total_available = self.known_apartments.len(),
                 added = diff.added.len(),
                 removed = diff.removed.len(),
@@ -194,7 +194,7 @@ impl App {
             }
 
             if !diff.changed.is_empty() {
-                tracing::info!(
+                tracing::debug!(
                     "Changed apartments:\n{}",
                     to_bullet_list(diff.changed.iter().map(|c| c.new.clone()))
                 );
