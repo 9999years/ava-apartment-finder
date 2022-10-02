@@ -7,6 +7,7 @@ use std::io::BufWriter;
 use std::path::Path;
 use std::time::Duration;
 
+use chrono::Utc;
 use clap::Parser;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
@@ -124,8 +125,8 @@ async fn get_apartments() -> eyre::Result<api::ApartmentData> {
 
 #[derive(Clone, Debug, Default)]
 struct ApartmentsDiff {
-    added: Vec<api::Apartment>,
-    removed: Vec<api::Apartment>,
+    added: Vec<api::ApiApartment>,
+    removed: Vec<api::ApiApartment>,
     changed: Vec<ChangedApartment>,
 }
 
@@ -137,8 +138,8 @@ impl ApartmentsDiff {
 
 #[derive(Clone, Debug)]
 struct ChangedApartment {
-    old: api::Apartment,
-    new: api::Apartment,
+    old: api::ApiApartment,
+    new: api::ApiApartment,
 }
 
 impl Display for ChangedApartment {
@@ -161,6 +162,7 @@ impl Display for ChangedApartment {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct App {
     known_apartments: BTreeMap<String, api::Apartment>,
+    unlisted_apartments: BTreeMap<String, api::Apartment>,
 }
 
 impl App {
@@ -220,18 +222,18 @@ impl App {
         // _unlisted_.
         let mut removed: BTreeMap<_, _> = std::mem::take(&mut self.known_apartments);
 
-        for unit in new_data.units {
+        for apt in new_data.apartments {
             // Did we have any data for this apartment already?
             // Remember we have the old apartments (minus the ones we've already seen
             // in the new data) in `removed`.
-            match removed.get(&unit.unit_id) {
+            match removed.get(apt.id()) {
                 Some(known_unit) => {
                     // We already have data for an apartment with the same `unit_id`.
-                    if &unit != known_unit {
+                    if &apt.inner != &known_unit.inner {
                         // It's different data! Show what changed.
                         let changed = ChangedApartment {
-                            old: known_unit.clone(),
-                            new: unit.clone(),
+                            old: known_unit.inner.clone(),
+                            new: apt.inner.clone(),
                         };
                         // Mark this apartment as changed.
                         diff.changed.push(changed);
@@ -240,18 +242,25 @@ impl App {
                 }
                 None => {
                     // A new apartment!!!
-                    diff.added.push(unit.clone());
+                    diff.added.push(apt.inner.clone());
                 }
             }
 
             // This unit is still listed, so it wasn't removed.
-            removed.remove(&unit.unit_id);
+            removed.remove(apt.id());
             // Update our data.
-            self.known_apartments.insert(unit.unit_id.clone(), unit);
+            self.known_apartments.insert(apt.id().to_owned(), apt);
         }
 
         diff.removed
-            .extend(removed.into_iter().map(|(_, unit)| unit));
+            .extend(removed.iter().map(|(_, unit)| unit.inner.clone()));
+
+        // Note when each apartment was unlisted.
+        self.unlisted_apartments
+            .extend(removed.into_iter().map(|(id, mut unit)| {
+                unit.unlisted = Some(Utc::now());
+                (id, unit)
+            }));
 
         Ok(diff)
     }

@@ -3,25 +3,86 @@ use std::fmt::Display;
 
 use chrono::DateTime;
 use chrono::Utc;
+use color_eyre::eyre;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::ava_date;
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(try_from = "ApiApartmentData")]
+pub struct ApartmentData {
+    pub apartments: Vec<Apartment>,
+}
+
+impl TryFrom<ApiApartmentData> for ApartmentData {
+    type Error = eyre::Report;
+
+    fn try_from(data: ApiApartmentData) -> Result<Self, Self::Error> {
+        let mut apartments = Vec::with_capacity(data.units.len());
+
+        for apt in data.units {
+            apartments.push(Apartment {
+                    inner: apt.clone(),
+                    history: vec![
+                        ApartmentSnapshot {
+                            inner: serde_json::to_value(&apt)?,
+                            observed: Utc::now(),
+                        }
+                    ],
+                    listed: Utc::now(),
+                    unlisted: None,
+                }
+            )
+        }
+
+        Ok(Self {
+            apartments
+        })
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ApartmentData {
-    pub units: Vec<Apartment>,
+struct ApiApartmentData {
+    units: Vec<ApiApartment>,
     promotions: Vec<Promotion>,
     pricing_overview: Vec<PricingOverview>,
     #[serde(flatten)]
     extra: Value,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Apartment {
+    pub inner: ApiApartment,
+    pub history: Vec<ApartmentSnapshot>,
+    pub listed: DateTime<Utc>,
+    pub unlisted: Option<DateTime<Utc>>,
+}
+
+impl Apartment {
+    pub fn id(&self) -> &str {
+        &self.inner.unit_id
+    }
+
+    pub fn update_inner(&mut self, new_inner: ApiApartment) -> eyre::Result<()> {
+        self.inner = new_inner;
+        self.history.push(ApartmentSnapshot {
+            inner: serde_json::to_value(&self.inner)?,
+            observed: Utc::now(),
+        });
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ApartmentSnapshot {
+    pub inner: Value,
+    pub observed: DateTime<Utc>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct Apartment {
+pub struct ApiApartment {
     pub unit_id: String,
     #[serde(rename = "name")]
     number: String,
@@ -32,18 +93,18 @@ pub struct Apartment {
     bedroom: usize,
     bathroom: usize,
     square_feet: f64,
-    #[serde(with = "ava_date")]
-    available_date: DateTime<Utc>,
+    available_date: AvaDate,
     #[serde(rename = "unitRentPrice")]
     rent: Rent,
     #[serde(rename = "lowestPricePerMoveInDate")]
     lowest_rent: LowestRent,
+    promotions: Vec<ApplicablePromotion>,
 
     #[serde(flatten)]
     extra: Value,
 }
 
-impl Apartment {
+impl ApiApartment {
     fn meets_qualifications(&self) -> bool {
         if let Furnished::Furnished = self.furnished {
             tracing::debug!(number = self.number, "Skipping apartment; furnished");
@@ -63,9 +124,9 @@ impl Apartment {
     }
 }
 
-impl Display for Apartment {
+impl Display for ApiApartment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Apartment {
+        let ApiApartment {
             number,
             floor_plan,
             virtual_tour,
@@ -137,8 +198,7 @@ struct Rent {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct PricesForMoveInDate {
-    #[serde(with = "ava_date")]
-    move_in_date: DateTime<Utc>,
+    move_in_date: AvaDate,
     prices_per_terms: BTreeMap<usize, Price>,
 }
 
@@ -152,8 +212,7 @@ struct Price {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct LowestRent {
-    #[serde(with = "ava_date")]
-    date: DateTime<Utc>,
+    date: AvaDate,
 
     // Shoulda been a usize
     term_length: String,
@@ -178,10 +237,8 @@ struct Promotion {
 #[serde(rename_all = "camelCase")]
 struct ApplicablePromotion {
     promotion_id: String,
-    #[serde(with = "ava_date")]
-    start_date: DateTime<Utc>,
-    #[serde(with = "ava_date")]
-    end_date: DateTime<Utc>,
+    start_date: AvaDate,
+    end_date: Option<AvaDate>,
     terms: Vec<usize>,
 }
 
@@ -196,4 +253,19 @@ struct PricingOverview {
     on_demand_lowest_price: Option<f64>,
     total_lowest_price: f64,
     total_highest_price: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(transparent)]
+struct AvaDate(
+    #[serde(with = "crate::ava_date")]
+    DateTime<Utc>
+);
+
+impl std::ops::Deref for AvaDate {
+    type Target = DateTime<Utc>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
