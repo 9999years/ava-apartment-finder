@@ -3,7 +3,9 @@ use chrono::Utc;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
 use color_eyre::eyre::Context;
-use tracing_subscriber::filter::LevelFilter;
+use tracing::metadata::LevelFilter;
+use tracing::Level;
+use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
@@ -59,7 +61,13 @@ where
     let layer = fmt::layer()
         .event_format(fmt::format::json())
         .with_writer(file)
-        .with_filter(LevelFilter::DEBUG)
+        .with_filter(
+            FilterFn::new(|metadata| {
+                *metadata.level() <= Level::DEBUG
+                    && metadata.target().starts_with("ava_apartment_finder")
+            })
+            .with_max_level_hint(LevelFilter::DEBUG),
+        )
         .boxed();
 
     Ok((layer, path))
