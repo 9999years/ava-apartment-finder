@@ -63,8 +63,10 @@ where
         .with_writer(file)
         .with_filter(
             FilterFn::new(|metadata| {
-                *metadata.level() <= Level::DEBUG
-                    && metadata.target().starts_with("ava_apartment_finder")
+                *metadata.level() <= Level::DEBUG && {
+                    let target = metadata.target();
+                    target.starts_with("ava_apartment_finder") || target.starts_with("jmap_client")
+                }
             })
             .with_max_level_hint(LevelFilter::DEBUG),
         )
