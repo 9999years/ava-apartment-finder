@@ -95,7 +95,7 @@ pub struct ApartmentSnapshot {
 pub struct ApiApartment {
     pub unit_id: String,
     #[serde(rename = "name")]
-    number: String,
+    pub number: String,
     #[serde(rename = "furnishStatus")]
     furnished: Furnished,
     floor_plan: FloorPlan,
@@ -103,7 +103,7 @@ pub struct ApiApartment {
     bedroom: usize,
     bathroom: usize,
     square_feet: f64,
-    available_date: AvaDate,
+    pub available_date: AvaDate,
     #[serde(rename = "unitRentPrice")]
     rent: Rent,
     #[serde(rename = "lowestPricePerMoveInDate")]
@@ -115,7 +115,7 @@ pub struct ApiApartment {
 }
 
 impl ApiApartment {
-    fn meets_qualifications(&self) -> bool {
+    pub fn meets_qualifications(&self) -> bool {
         if let Furnished::Furnished = self.furnished {
             tracing::debug!(number = self.number, "Skipping apartment; furnished");
             false
@@ -267,7 +267,7 @@ struct PricingOverview {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(transparent)]
-struct AvaDate(#[serde(with = "crate::ava_date")] DateTime<Utc>);
+pub struct AvaDate(#[serde(with = "crate::ava_date")] DateTime<Utc>);
 
 impl std::ops::Deref for AvaDate {
     type Target = DateTime<Utc>;

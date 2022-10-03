@@ -19,6 +19,7 @@ use soup::prelude::*;
 mod api;
 mod ava_date;
 mod diff;
+mod jmap;
 mod node;
 mod trace;
 mod wrap;
@@ -168,6 +169,23 @@ impl App {
                     "Newly listed apartments:\n{}",
                     to_bullet_list(diff.added.iter())
                 );
+
+                for unit in diff.added {
+                    if unit.meets_qualifications() {
+                        jmap::Email {
+                            to: "Rebecca Turner <rbt@fastmail.com>".to_owned(),
+                            from: "Ava Apartment Finder <rbt@fastmail.com>".to_owned(),
+                            subject: format!(
+                                "Apartment {} listed, available {}",
+                                unit.number,
+                                unit.available_date.date(),
+                            ),
+                            body: format!("{unit}"),
+                        }
+                        .send()
+                        .await?;
+                    }
+                }
             }
 
             if !diff.removed.is_empty() {
