@@ -363,6 +363,8 @@ impl Client {
     where
         R: DeserializeOwned,
     {
+        let body = serde_json::to_string(&request)?;
+        tracing::debug!(%body, "Sending request");
         let response = Client::handle_error(
             reqwest::Client::builder()
                 .redirect(self.redirect_policy())
@@ -370,7 +372,7 @@ impl Client {
                 .default_headers(self.headers.clone())
                 .build()?
                 .post(&self.api_url)
-                .body(serde_json::to_string(&request)?)
+                .body(body)
                 .send()
                 .await?,
         )

@@ -54,18 +54,21 @@ impl Client {
 
     pub async fn identity_get(
         &self,
-        id: &str,
+        ids: Option<Vec<String>>,
         properties: Option<Vec<Property>>,
-    ) -> crate::Result<Option<Identity>> {
+    ) -> crate::Result<Vec<Identity>> {
         let mut request = self.build();
-        let get_request = request.get_identity().ids([id]);
+        let get_request = request.get_identity();
+        if let Some(ids) = ids {
+            get_request.ids(ids);
+        }
         if let Some(properties) = properties {
             get_request.properties(properties.into_iter());
         }
         request
             .send_single::<IdentityGetResponse>()
             .await
-            .map(|mut r| r.take_list().pop())
+            .map(|mut r| r.take_list())
     }
 
     pub async fn identity_changes(

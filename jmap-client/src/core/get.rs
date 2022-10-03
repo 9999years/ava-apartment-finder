@@ -28,7 +28,6 @@ pub struct GetRequest<O: GetObject> {
     #[serde(skip_serializing_if = "Option::is_none")]
     account_id: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
     ids: Option<Vec<String>>,
 
     #[serde(rename = "#ids")]

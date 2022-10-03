@@ -427,7 +427,7 @@ impl Arguments {
 impl<'x> Request<'x> {
     pub fn new(client: &'x Client) -> Self {
         Request {
-            using: vec![URI::Core, URI::Mail],
+            using: vec![URI::Core, URI::Mail, URI::Submission],
             method_calls: vec![],
             created_ids: None,
             account_id: client.default_account_id().to_string(),

@@ -173,8 +173,8 @@ impl App {
                 for unit in diff.added {
                     // if unit.meets_qualifications() {}
                     jmap::Email {
-                        to: "Rebecca Turner <rbt@fastmail.com>".to_owned(),
-                        from: "Ava Apartment Finder <rbt@fastmail.com>".to_owned(),
+                        to: ("Rebecca Turner", "rbt@fastmail.com").into(),
+                        from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
                         subject: format!(
                             "Apartment {} listed, available {}",
                             unit.number,

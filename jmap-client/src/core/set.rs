@@ -139,6 +139,8 @@ pub enum SetErrorType {
     ForbiddenToSend,
     #[serde(rename = "cannotUnsend")]
     CannotUnsend,
+    #[serde(rename = "alreadyExists")]
+    AlreadyExists,
 }
 
 impl<O: SetObject> SetRequest<O> {
@@ -398,6 +400,7 @@ impl Display for SetErrorType {
             SetErrorType::ForbiddenMailFrom => write!(f, "ForbiddenMailFrom"),
             SetErrorType::ForbiddenToSend => write!(f, "ForbiddenToSend"),
             SetErrorType::CannotUnsend => write!(f, "CannotUnsend"),
+            SetErrorType::AlreadyExists => write!(f, "AlreadyExists"),
         }
     }
 }

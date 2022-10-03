@@ -280,6 +280,15 @@ pub struct EmailAddress<State = Get> {
     email: String,
 }
 
+impl<State> Display for EmailAddress<State> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.name {
+            Some(name) => write!(f, "{name} <{}>", self.email),
+            None => write!(f, "{}", self.email),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailAddressGroup<State = Get> {
     #[serde(skip)]
