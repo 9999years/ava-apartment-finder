@@ -171,20 +171,19 @@ impl App {
                 );
 
                 for unit in diff.added {
-                    if unit.meets_qualifications() {
-                        jmap::Email {
-                            to: "Rebecca Turner <rbt@fastmail.com>".to_owned(),
-                            from: "Ava Apartment Finder <rbt@fastmail.com>".to_owned(),
-                            subject: format!(
-                                "Apartment {} listed, available {}",
-                                unit.number,
-                                unit.available_date.date(),
-                            ),
-                            body: format!("{unit}"),
-                        }
-                        .send()
-                        .await?;
+                    // if unit.meets_qualifications() {}
+                    jmap::Email {
+                        to: "Rebecca Turner <rbt@fastmail.com>".to_owned(),
+                        from: "Ava Apartment Finder <rbt@fastmail.com>".to_owned(),
+                        subject: format!(
+                            "Apartment {} listed, available {}",
+                            unit.number,
+                            unit.available_date.date(),
+                        ),
+                        body: format!("{unit}"),
                     }
+                    .send()
+                    .await?;
                 }
             }
 
