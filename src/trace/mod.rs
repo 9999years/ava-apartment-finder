@@ -7,6 +7,7 @@ use tracing::metadata::LevelFilter;
 use tracing::Level;
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::fmt;
+use tracing_subscriber::fmt::format::JsonFields;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
@@ -60,6 +61,7 @@ where
 
     let layer = fmt::layer()
         .event_format(fmt::format::json())
+        .fmt_fields(JsonFields::new())
         .with_writer(file)
         .with_filter(
             FilterFn::new(|metadata| {

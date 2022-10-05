@@ -110,7 +110,10 @@ impl Email {
                     Subject: {}\r\n\
                     \r\n\
                     {}\r\n",
-                    self.to, self.from, self.subject, self.body
+                    self.to,
+                    self.from,
+                    self.subject,
+                    self.body.to_string().replace('\n', "\r\n")
                 )
                 .as_bytes()
                 .to_vec(),
