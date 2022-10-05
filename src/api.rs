@@ -72,10 +72,11 @@ impl Apartment {
 impl Display for Apartment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(unlisted) = self.unlisted {
+            let tracked_duration = unlisted - self.listed;
             write!(
                 f,
-                "Unlisted after {}: {}",
-                unlisted - self.listed,
+                "Unlisted after {} days: {}",
+                tracked_duration.num_days(),
                 self.inner
             )
         } else {
@@ -149,7 +150,7 @@ impl Display for ApiApartment {
             ..
         } = self;
         let price = lowest_rent.price.price;
-        let available_date = &available_date.date();
+        let available_date = &available_date.date().format("%c");
         let floor_plan = &floor_plan.name;
         let virtual_tour = match virtual_tour {
             Some(virtual_tour) if virtual_tour.is_actual_unit => ", virtual tour",

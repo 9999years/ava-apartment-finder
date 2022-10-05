@@ -180,7 +180,7 @@ impl App {
                         subject: format!(
                             "Apartment {} listed, available {}",
                             unit.number,
-                            unit.available_date.date(),
+                            unit.available_date.date().format("%c"),
                         ),
                         body: format!("{unit}"),
                     }
@@ -201,6 +201,7 @@ impl App {
                             tracing::warn!(apartment = ?unit, "Weird that apartment in `diff.removed` has no `unlisted` field");
                         }
                         Some(unlisted) => {
+                            let tracked_duration = unlisted - unit.listed;
                             jmap::Email {
                                 to: ("Rebecca Turner", "rbt@fastmail.com").into(),
                                 from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
@@ -209,9 +210,9 @@ impl App {
                                     unit.inner.number
                                 ),
                                 body: format!(
-                                    "{unit}\nTracked since: {}\nTracked for: {}",
+                                    "{unit}\nTracked since: {}\nTracked for: {} days",
                                     unit.listed,
-                                    unlisted - unit.listed
+                                    tracked_duration.num_days()
                                 ),
                             }
                             .send()
@@ -226,14 +227,6 @@ impl App {
                     "Changed apartments:\n{}",
                     to_bullet_list(diff.changed.iter().map(|c| c.new.clone()))
                 );
-                jmap::Email {
-                    to: ("Rebecca Turner", "rbt@fastmail.com").into(),
-                    from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
-                    subject: format!("Data for {} apartments changed!", diff.changed.len()),
-                    body: to_bullet_list(diff.changed.iter().map(|c| c.new.clone())),
-                }
-                .send()
-                .await?;
             }
         }
 
