@@ -16,6 +16,7 @@ use jmap_client::mailbox::Role;
 
 const API_ENDPOINT: &str = "https://api.fastmail.com/jmap/session";
 
+#[derive(Debug)]
 pub struct Email {
     pub to: EmailAddress,
     pub from: EmailAddress,
@@ -24,6 +25,7 @@ pub struct Email {
 }
 
 impl Email {
+    #[tracing::instrument]
     pub async fn send(&self) -> eyre::Result<()> {
         let bearer_token =
             std::env::var("FASTMAIL_API_TOKEN").wrap_err("Couldn't get $FASTMAIL_API_TOKEN")?;
