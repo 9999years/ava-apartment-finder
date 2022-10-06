@@ -44,6 +44,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    color_eyre::install()?;
     let args = Args::parse();
     let log_file = trace::install_tracing(&args.tracing_filter)?;
     tracing::info!("Logging to {log_file}");
@@ -180,7 +181,7 @@ impl App {
                         subject: format!(
                             "Apartment {} listed, available {}",
                             unit.number,
-                            unit.available_date.date().format("%c"),
+                            unit.available_date.format("%b %e %Y"),
                         ),
                         body: format!("{unit}"),
                     }

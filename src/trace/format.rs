@@ -112,7 +112,7 @@ impl fmt::Display for EventVisitor {
         // Next, color the message _before_ wrapping it. If you wrap before coloring,
         // `textwrap` prepends the `initial_indent` to the first line. The `initial_indent` is
         // colored, so it has a reset sequence at the end, and the message ends up uncolored.
-        let mut message = format!("{} {}", Utc::now().format("%c").dimmed(), self.message);
+        let mut message = format!("{} {}", Utc::now().to_rfc2822().dimmed(), self.message);
 
         // If there's only one field, and it fits on the same line as the message, put it on the
         // same line. Otherwise, we use the 'long format' with each field on a separate line.

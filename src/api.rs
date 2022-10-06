@@ -150,7 +150,7 @@ impl Display for ApiApartment {
             ..
         } = self;
         let price = lowest_rent.price.price;
-        let available_date = &available_date.date().format("%c");
+        let available_date = available_date.format("%b %e %Y");
         let floor_plan = &floor_plan.name;
         let virtual_tour = match virtual_tour {
             Some(virtual_tour) if virtual_tour.is_actual_unit => ", virtual tour",
@@ -275,5 +275,63 @@ impl std::ops::Deref for AvaDate {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeZone;
+
+    use super::*;
+
+    #[test]
+    fn test_api_apartment_display() {
+        assert_eq!(
+            &ApiApartment {
+                unit_id: "AVB-WA026-001-731".to_owned(),
+                number: "731".to_string(),
+                furnished: Furnished::Unfurnished,
+                floor_plan: FloorPlan {
+                    name: "f-b4v".to_string(),
+                    low_resolution: "/floorplans/wa026/wa026-b4v-1268sf(1).jpg/128/96".to_string(),
+                    high_resolution: "/floorplans/wa026/wa026-b4v-1268sf(1).jpg/1024/768"
+                        .to_string()
+                },
+                virtual_tour: None,
+                bedroom: 2,
+                bathroom: 2,
+                square_feet: 1268.0,
+                available_date: AvaDate(Utc.ymd(2022, 10, 21).and_hms_opt(4, 0, 0).unwrap()),
+                rent: Rent {
+                    applied_discount: 0.0,
+                    prices_per_movein_date: vec![PricesForMoveInDate {
+                        move_in_date: AvaDate(Utc.ymd(2022, 10, 21).and_hms_opt(4, 0, 0).unwrap()),
+                        prices_per_terms: maplit::btreemap! {
+                            2 => Price {
+                                price: 4720.0,
+                                net_effective_price: 4720.0
+                            }
+                        }
+                    }]
+                },
+                lowest_rent: LowestRent {
+                    date: AvaDate(Utc.ymd(2022, 10, 21).and_hms_opt(4, 0, 0).unwrap()),
+                    term_length: "8".to_string(),
+                    price: Price {
+                        price: 4260.0,
+                        net_effective_price: 4260.0,
+                    }
+                },
+                promotions: vec![ApplicablePromotion {
+                    promotion_id: "106246".to_string(),
+                    start_date: AvaDate(Utc.ymd(2022, 10, 5).and_hms_opt(4, 0, 0).unwrap()),
+                    end_date: Some(AvaDate(Utc.ymd(2022, 11, 30).and_hms_opt(4, 0, 0).unwrap())),
+                    terms: vec![12]
+                }],
+                extra: serde_json::Value::Object(serde_json::Map::new())
+            }
+            .to_string(),
+            "Apartment 731 (2 bed 2 bath, $4260, 1268sq/ft, avail. Oct 21 2022, plan f-b4v)"
+        );
     }
 }
