@@ -251,12 +251,17 @@ impl App {
         // _unlisted_.
         let mut removed: BTreeMap<_, _> = std::mem::take(&mut self.known_apartments);
 
-        for apt in new_data.apartments {
+        for mut apt in new_data.apartments {
             // Did we have any data for this apartment already?
             // Remember we have the old apartments (minus the ones we've already seen
             // in the new data) in `removed`.
             match removed.get(apt.id()) {
                 Some(known_unit) => {
+                    // This apartment wasn't listed now, so copy the listed
+                    // time from the old data, as the
+                    // `impl TryFrom<api::ApartmentData> for api::ApartmentData`
+                    // just... inserts the current time!
+                    apt.listed = known_unit.listed;
                     // We already have data for an apartment with the same `unit_id`.
                     if &apt.inner != &known_unit.inner {
                         // It's different data! Show what changed.
