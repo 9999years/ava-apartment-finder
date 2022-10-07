@@ -75,8 +75,8 @@ impl Display for Apartment {
             let tracked_duration = unlisted - self.listed;
             write!(
                 f,
-                "Unlisted after {} days: {}",
-                tracked_duration.num_days(),
+                "Unlisted after {}: {}",
+                crate::duration::PrettyDuration(tracked_duration),
                 self.inner
             )
         } else {

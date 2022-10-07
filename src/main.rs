@@ -19,6 +19,7 @@ use soup::prelude::*;
 mod api;
 mod ava_date;
 mod diff;
+mod duration;
 mod jmap;
 mod node;
 mod trace;
@@ -202,7 +203,6 @@ impl App {
                             tracing::warn!(apartment = ?unit, "Weird that apartment in `diff.removed` has no `unlisted` field");
                         }
                         Some(unlisted) => {
-                            let tracked_duration = unlisted - unit.listed;
                             jmap::Email {
                                 to: ("Rebecca Turner", "rbt@fastmail.com").into(),
                                 from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
@@ -213,7 +213,7 @@ impl App {
                                 body: format!(
                                     "{unit}\nTracked since: {}\nTracked for: {} days",
                                     unit.listed,
-                                    tracked_duration.num_days()
+                                    duration::PrettyDuration(unlisted - unit.listed)
                                 ),
                             }
                             .send()
