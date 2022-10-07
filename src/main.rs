@@ -198,28 +198,14 @@ impl App {
                 );
 
                 for unit in diff.removed {
-                    match unit.unlisted {
-                        None => {
-                            tracing::warn!(apartment = ?unit, "Weird that apartment in `diff.removed` has no `unlisted` field");
-                        }
-                        Some(unlisted) => {
-                            jmap::Email {
-                                to: ("Rebecca Turner", "rbt@fastmail.com").into(),
-                                from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
-                                subject: format!(
-                                    "Apartment {} no longer available!",
-                                    unit.inner.number
-                                ),
-                                body: format!(
-                                    "{unit}\nTracked since: {}\nTracked for: {} days",
-                                    unit.listed,
-                                    duration::PrettyDuration(unlisted - unit.listed)
-                                ),
-                            }
-                            .send()
-                            .await?;
-                        }
+                    jmap::Email {
+                        to: ("Rebecca Turner", "rbt@fastmail.com").into(),
+                        from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
+                        subject: format!("Apartment {} no longer available!", unit.inner.number),
+                        body: format!("{unit}\nTracked since: {}", unit.listed),
                     }
+                    .send()
+                    .await?;
                 }
             }
 
