@@ -241,13 +241,14 @@ impl App {
             // Did we have any data for this apartment already?
             // Remember we have the old apartments (minus the ones we've already seen
             // in the new data) in `removed`.
-            match removed.get(apt.id()) {
+            match removed.remove(apt.id()) {
                 Some(known_unit) => {
                     // This apartment wasn't listed now, so copy the listed
                     // time from the old data, as the
                     // `impl TryFrom<api::ApartmentData> for api::ApartmentData`
                     // just... inserts the current time!
                     apt.listed = known_unit.listed;
+                    apt.history.extend(known_unit.history);
                     // We already have data for an apartment with the same `unit_id`.
                     if &apt.inner != &known_unit.inner {
                         // It's different data! Show what changed.
@@ -266,8 +267,6 @@ impl App {
                 }
             }
 
-            // This unit is still listed, so it wasn't removed.
-            removed.remove(apt.id());
             // Update our data.
             self.known_apartments.insert(apt.id().to_owned(), apt);
         }
