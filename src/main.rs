@@ -248,7 +248,7 @@ impl App {
                     // `impl TryFrom<api::ApartmentData> for api::ApartmentData`
                     // just... inserts the current time!
                     apt.listed = known_unit.listed;
-                    apt.history.extend(known_unit.history);
+                    // apt.history.extend(known_unit.history);
                     // We already have data for an apartment with the same `unit_id`.
                     if &apt.inner != &known_unit.inner {
                         // It's different data! Show what changed.

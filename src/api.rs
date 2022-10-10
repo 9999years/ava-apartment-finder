@@ -23,10 +23,10 @@ impl TryFrom<ApiApartmentData> for ApartmentData {
         for apt in data.units {
             apartments.push(Apartment {
                 inner: apt.clone(),
-                history: vec![ApartmentSnapshot {
-                    inner: serde_json::to_value(&apt)?,
-                    observed: Utc::now(),
-                }],
+                // history: vec![ApartmentSnapshot {
+                    // inner: serde_json::to_value(&apt)?,
+                    // observed: Utc::now(),
+                // }],
                 listed: Utc::now(),
                 unlisted: None,
             })
@@ -49,7 +49,7 @@ struct ApiApartmentData {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Apartment {
     pub inner: ApiApartment,
-    pub history: Vec<ApartmentSnapshot>,
+    // pub history: Vec<ApartmentSnapshot>,
     pub listed: DateTime<Utc>,
     pub unlisted: Option<DateTime<Utc>>,
 }
@@ -61,10 +61,10 @@ impl Apartment {
 
     pub fn update_inner(&mut self, new_inner: ApiApartment) -> eyre::Result<()> {
         self.inner = new_inner;
-        self.history.push(ApartmentSnapshot {
-            inner: serde_json::to_value(&self.inner)?,
-            observed: Utc::now(),
-        });
+        // self.history.push(ApartmentSnapshot {
+            // inner: serde_json::to_value(&self.inner)?,
+            // observed: Utc::now(),
+        // });
         Ok(())
     }
 }
