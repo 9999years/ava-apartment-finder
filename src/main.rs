@@ -65,15 +65,21 @@ async fn main() -> eyre::Result<()> {
 
     tracing::info!("Tracking {} apartments", app.known_apartments.len());
 
+    let sending_identity =
+        jmap::SendingIdentity::new(("Ava Apartment Finder", "rbt@fastmail.com").into())
+            .await
+            .wrap_err("Unable to determine email sending identity")?;
+
+    app.sending_identity = Some(sending_identity);
+
     loop {
         match app.tick().await {
             Ok(()) => {}
             Err(err) => {
                 tracing::error!("{err:?}");
 
-                let email = jmap::Email {
+                let email_err = app.send(&jmap::Email {
                     to: ("Rebecca Turner", "rbt@fastmail.com").into(),
-                    from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
                     subject: format!("Ava Apartment Finder error: {err}"),
                     body: format!(
                         "{err:?}\n\n\
@@ -81,8 +87,8 @@ async fn main() -> eyre::Result<()> {
                         Sorry about that.\n\
                         —Past Rebecca"
                     ),
-                };
-                if let Err(err) = email.send().await {
+                }).await;
+                if let Err(err) = email_err {
                     tracing::error!("Error sending error email: {err:?}");
                 };
             }
@@ -161,13 +167,25 @@ impl Display for ChangedApartment {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Default, Deserialize, Serialize)]
 struct App {
+    #[serde(skip)]
+    sending_identity: Option<jmap::SendingIdentity>,
     known_apartments: BTreeMap<String, api::Apartment>,
     unlisted_apartments: BTreeMap<String, api::Apartment>,
 }
 
 impl App {
+    async fn send(&self, email: &jmap::Email) -> eyre::Result<()> {
+        match &self.sending_identity {
+            Some(identity) => email.send(&identity).await,
+            None => Err(eyre!(
+                "No email credentials found, unable to send email: {}",
+                email.subject
+            )),
+        }
+    }
+
     /// One 'tick' of the app. Get new apartment data and report changes.
     #[tracing::instrument(skip(self))]
     async fn tick(&mut self) -> eyre::Result<()> {
@@ -192,17 +210,15 @@ impl App {
 
                 for unit in diff.added {
                     // if unit.meets_qualifications() {}
-                    jmap::Email {
+                    self.send(&jmap::Email {
                         to: ("Rebecca Turner", "rbt@fastmail.com").into(),
-                        from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
                         subject: format!(
                             "Apartment {} listed, available {}",
                             unit.number,
                             unit.available_date.format("%b %e %Y"),
                         ),
                         body: format!("{unit}"),
-                    }
-                    .send()
+                    })
                     .await?;
                 }
             }
@@ -214,13 +230,11 @@ impl App {
                 );
 
                 for unit in diff.removed {
-                    jmap::Email {
+                    self.send(&jmap::Email {
                         to: ("Rebecca Turner", "rbt@fastmail.com").into(),
-                        from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
                         subject: format!("Apartment {} no longer available!", unit.inner.number),
                         body: format!("{unit}\nTracked since: {}", unit.listed),
-                    }
-                    .send()
+                    })
                     .await?;
                 }
             }
@@ -243,7 +257,7 @@ impl App {
 
     /// Fetch new apartment data, update `known_apartments` to include it, and return the
     /// changes with the previous `known_apartments`.
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     async fn compute_diff(&mut self) -> eyre::Result<ApartmentsDiff> {
         let new_data = get_apartments().await?;
         let mut diff = ApartmentsDiff::default();

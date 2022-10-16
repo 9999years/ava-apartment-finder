@@ -16,17 +16,15 @@ use jmap_client::mailbox::Role;
 
 const API_ENDPOINT: &str = "https://api.fastmail.com/jmap/session";
 
-#[derive(Debug)]
-pub struct Email {
-    pub to: EmailAddress,
-    pub from: EmailAddress,
-    pub subject: String,
-    pub body: String,
+pub struct SendingIdentity {
+    from: EmailAddress,
+    client: Client,
+    mailbox_id: String,
+    identity_id: String,
 }
 
-impl Email {
-    #[tracing::instrument]
-    pub async fn send(&self) -> eyre::Result<()> {
+impl SendingIdentity {
+    pub async fn new(from: EmailAddress) -> eyre::Result<Self> {
         let bearer_token =
             std::env::var("FASTMAIL_API_TOKEN").wrap_err("Couldn't get $FASTMAIL_API_TOKEN")?;
 
@@ -67,7 +65,9 @@ impl Email {
             }
         }
 
-        let mailbox_id = mailbox_id.ok_or_else(|| eyre!("Unable to find Inbox ID"))?;
+        let mailbox_id = mailbox_id
+            .ok_or_else(|| eyre!("Unable to find Inbox ID"))?
+            .to_owned();
 
         tracing::debug!("Using mailbox ID {mailbox_id}");
 
@@ -86,23 +86,30 @@ impl Email {
 
         let mut identity = None;
         for ident in identities {
-            if ident.email() == Some(self.from.email()) && self.from.name() == ident.name() {
+            if ident.email() == Some(from.email()) && from.name() == ident.name() {
                 identity = Some(ident);
             }
         }
-        let identity = identity.ok_or_else(|| {
-            eyre!(
-                "Unable to find sending identity for email {}",
-                self.from.email()
-            )
-        })?;
+        let identity = identity
+            .ok_or_else(|| eyre!("Unable to find sending identity for email {}", from.email()))?;
         let identity_id = identity
             .id()
-            .ok_or_else(|| eyre!("Identity has no ID: {identity:?}"))?;
+            .ok_or_else(|| eyre!("Identity has no ID: {identity:?}"))?
+            .to_owned();
 
+        Ok(Self {
+            client,
+            from,
+            mailbox_id,
+            identity_id,
+        })
+    }
+
+    pub async fn send(&self, email: &Email) -> eyre::Result<()> {
         let keywords: Option<Vec<&'static str>> = None;
 
-        let email = client
+        let imported_email = self
+            .client
             .email_import(
                 format!(
                     "To: {}\r\n\
@@ -110,14 +117,14 @@ impl Email {
                     Subject: {}\r\n\
                     \r\n\
                     {}\r\n",
-                    self.to,
+                    email.to,
                     self.from,
-                    self.subject,
-                    self.body.to_string().replace('\n', "\r\n")
+                    email.subject,
+                    email.body.to_string().replace('\n', "\r\n")
                 )
                 .as_bytes()
                 .to_vec(),
-                vec![mailbox_id],
+                [&self.mailbox_id],
                 keywords,
                 None,
             )
@@ -125,25 +132,39 @@ impl Email {
             .map_err(|err| eyre!("{err}"))
             .wrap_err("Failed to import email")?;
 
-        let email_id = email
+        let email_id = imported_email
             .id()
             .ok_or_else(|| eyre!("Imported email has no ID"))?;
 
         tracing::debug!(id = email_id, "Imported email");
 
-        let submission = client
-            .email_submission_create(email_id, identity_id)
+        let submission = self
+            .client
+            .email_submission_create(email_id, &self.identity_id)
             .await
             .map_err(|err| eyre!("{err}"))
             .wrap_err("Failed to send email")?;
 
         tracing::info!(
-            to = %self.to,
-            subject=%self.subject,
+            to = %email.to,
+            subject = %email.subject,
             send_at = %submission.send_at().map(|i| Utc.timestamp(i, 0)).unwrap_or_default(),
             "Sent email!"
         );
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Email {
+    pub to: EmailAddress,
+    pub subject: String,
+    pub body: String,
+}
+
+impl Email {
+    pub async fn send(&self, identity: &SendingIdentity) -> eyre::Result<()> {
+        identity.send(self).await
     }
 }
