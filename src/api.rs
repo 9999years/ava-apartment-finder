@@ -24,8 +24,8 @@ impl TryFrom<ApiApartmentData> for ApartmentData {
             apartments.push(Apartment {
                 inner: apt.clone(),
                 // history: vec![ApartmentSnapshot {
-                    // inner: serde_json::to_value(&apt)?,
-                    // observed: Utc::now(),
+                // inner: serde_json::to_value(&apt)?,
+                // observed: Utc::now(),
                 // }],
                 listed: Utc::now(),
                 unlisted: None,
@@ -62,8 +62,8 @@ impl Apartment {
     pub fn update_inner(&mut self, new_inner: ApiApartment) -> eyre::Result<()> {
         self.inner = new_inner;
         // self.history.push(ApartmentSnapshot {
-            // inner: serde_json::to_value(&self.inner)?,
-            // observed: Utc::now(),
+        // inner: serde_json::to_value(&self.inner)?,
+        // observed: Utc::now(),
         // });
         Ok(())
     }
@@ -260,7 +260,7 @@ struct PricingOverview {
     bedroom: usize,
     r#type: String,
     available: bool,
-    designated_lowest_price: f64,
+    designated_lowest_price: Option<f64>,
     on_demand_lowest_price: Option<f64>,
     total_lowest_price: f64,
     total_highest_price: f64,
