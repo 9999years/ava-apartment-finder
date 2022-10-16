@@ -70,6 +70,21 @@ async fn main() -> eyre::Result<()> {
             Ok(()) => {}
             Err(err) => {
                 tracing::error!("{err:?}");
+
+                let email = jmap::Email {
+                    to: ("Rebecca Turner", "rbt@fastmail.com").into(),
+                    from: ("Ava Apartment Finder", "rbt@fastmail.com").into(),
+                    subject: format!("Ava Apartment Finder error: {err}"),
+                    body: format!(
+                        "{err:?}\n\n\
+                        You'll probably be getting this email every 5 minutes until you fix the bug. \
+                        Sorry about that.\n\
+                        —Past Rebecca"
+                    ),
+                };
+                if let Err(err) = email.send().await {
+                    tracing::error!("Error sending error email: {err:?}");
+                };
             }
         }
         // Wait 5 minutes before checking again.
