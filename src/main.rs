@@ -104,7 +104,8 @@ async fn get_apartments() -> eyre::Result<api::ApartmentData> {
 
     tracing::trace!(value, "Evaluated JavaScript");
 
-    Ok(serde_json::from_str(&value)?)
+    Ok(serde_json::from_str(&value)
+        .map_err(|err| format_serde_error::SerdeError::new(value.to_string(), err))?)
 }
 
 // --

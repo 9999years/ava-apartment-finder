@@ -11,6 +11,7 @@ chrono = { version = "0.4.22", features = ["serde"] }
 clap = { version = "3.2.16", features = ["derive"] }
 color-eyre = "0.6.2"
 dirs = "4.0.0"
+format_serde_error = "0.3.0"
 itertools = "0.10.5"
 jmap-client = { path = "./jmap-client/" }
 owo-colors = { version = "3.5.0", features = ["supports-colors"] }
